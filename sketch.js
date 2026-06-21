@@ -223,32 +223,33 @@ function procesarEntradasFisicas() {
   ultimoBtn3 = btn3;
 }
 
-// ── FUSIÓN DE CONTROLES MIX RECALIBRADA PARA VISOR VR (POSICIÓN VERTICAL) ──
+// ── FUSIÓN DE CONTROLES MIX CORREGIDA PARA CELULAR HORIZONTAL (VISOR VR) ──
 function manejarControlesMix() {
   let p = particulas[idManual];
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  // 1. CONTROL POR GIROSCOPIO ADAPTADO A VISOR VR
+  // 1. CONTROL POR GIROSCOPIO (Calibrado para pantalla horizontal en las gafas)
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     
-    // EJE X (Girar la cabeza a los lados): Usamos rotationY. Mantiene la sensibilidad previa de 0.675.
-    let dx = rotationY * 0.675; 
+    // EJE X (Girar a los lados): En modo horizontal, este movimiento lo detecta rotationX.
+    // Restamos 90 para que mirar al frente sea el punto de equilibrio (0).
+    let inclinacionHorizontal = rotationX - 90.0;
+    let dx = inclinacionHorizontal * 0.675; 
     
-    // EJE Y (Mirar arriba/abajo): Restamos 90 grados para que la posición quieta ("cero") 
-    // sea cuando el celular está perfectamente vertical/parado frente a los ojos.
-    let inclinacionVertical = rotationX - 90.0;
-    let dy = inclinacionVertical * 0.75; // Sensibilidad del eje Y ligeramente ajustada para VR
+    // EJE Y (Mirar arriba/abajo): En modo horizontal, este movimiento lo detecta rotationY.
+    // Invertimos el signo (-) para que al mirar arriba la esfera suba, y al mirar abajo baje.
+    let dy = -rotationY * 0.675;
 
-    // Filtro para ignorar micromovimientos del cuello (Ajustado a la nueva escala de inclinación)
-    if (abs(rotationY) > 0.4 || abs(inclinacionVertical) > 0.4) {
+    // Filtro para ignorar micromovimientos del cuello
+    if (abs(inclinacionHorizontal) > 0.4 || abs(rotationY) > 0.4) {
       p.pos.x += dx;
       p.pos.y += dy;
       seEstaMoviendo = true;
     }
   }
   
-  // 2. CONTROL POR TECLADO (Mantiene compatibilidad para pruebas)
+  // 2. CONTROL POR TECLADO (Se mantiene igual para pruebas en PC)
   if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { p.pos.x -= velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { p.pos.x += velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
