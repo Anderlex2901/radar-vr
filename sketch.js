@@ -1,4 +1,4 @@
-// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico) - EDICIÓN CUADRANTE INFERIOR IZQUIERDO
+// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico) - EDICIÓN VR CUADRANTE INFERIOR IZQUIERDO
 let miShader;
 let particulas = [];
 const numParticulas = 8;
@@ -87,6 +87,7 @@ const fs = `#version 300 es
 
 function setup() {
   pixelDensity(1); 
+
   createCanvas(windowWidth, windowHeight, WEBGL);
   miShader = createShader(vs, fs);
   posItem = createVector(0, 0);
@@ -94,14 +95,11 @@ function setup() {
   inicializarWebSocket();
   respawnItem();
 
-  // El área lógica del juego ahora corresponde a 1 ojo dentro de la cuarta parte reducida
-  let anchoOjoLogico = width / 4;
-  let altoOjoLogico = height / 2;
-
+  // El área de juego efectiva se calcula para un ojo dentro del cuadrante reducido (width/8 en vez de width/4)
   for (let i = 0; i < numParticulas; i++) {
     let tonos = obtenerTonosRandom();
     particulas.push({ 
-      pos: createVector(random(-anchoOjoLogico/2, anchoOjoLogico/2), random(-altoOjoLogico/2, altoOjoLogico/2)), 
+      pos: createVector(random(-width/16, width/16), random(-height/8, height/8)), 
       vel: p5.Vector.random2D().mult(random(0.8, 1.8)), 
       colClaro: tonos.claro, colOscuro: tonos.oscuro 
     });
@@ -118,16 +116,13 @@ function setup() {
 }
 
 function draw() {
-  background(0); // Forzamos el lienzo completo a fondo negro
+  background(0); // Fondo negro absoluto en todo el lienzo
   
+  // 1. ACTUALIZACIONES DE LÓGICA
   procesarEntradasFisicas();
   manejarControlesMix(); 
   verificarColisionItem();
   
-  // Dimensiones de render para la cuarta parte del lienzo total dividida en 2 ojos
-  let anchoOjoRender = width / 4;
-  let altoOjoRender = height / 2;
-
   if (itemActivo) {
     let d = dist(particulas[idManual].pos.x, particulas[idManual].pos.y, posItem.x, posItem.y);
     let seVolvioVisible = (d < 160) || (tiempoVisibilidad > 0);
@@ -144,35 +139,40 @@ function draw() {
   
   if (frameCount % 80 === 0) ondasUsuario.push({ r: 0, a: 255 });
   
+  // Dimensiones efectivas de un solo ojo dentro de la cuarta parte de la pantalla
+  let anchoOjo = width / 4;
+  let heightOjo = height / 2;
+
   for (let i = 0; i < numParticulas; i++) {
     let p = particulas[i];
     if (i !== idManual) {
       p.pos.add(p.vel);
-      if (p.pos.x < -anchoOjoRender/2 || p.pos.x > anchoOjoRender/2) p.vel.x *= -1;
-      if (p.pos.y < -altoOjoRender/2 || p.pos.y > altoOjoRender/2) p.vel.y *= -1;
+      // Rebote adaptado al tamaño de ventana de un ojo reducido
+      if (p.pos.x < -anchoOjo/2 || p.pos.x > anchoOjo/2) p.vel.x *= -1;
+      if (p.pos.y < -heightOjo/2 || p.pos.y > heightOjo/2) p.vel.y *= -1;
     }
   }
 
+  // Mapeo de posiciones absolutas para el shader basándose en el anchoOjo reducido
   let posArr = []; let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
-    posArr.push(particulas[i].pos.x + (anchoOjoRender / 2), particulas[i].pos.y + (altoOjoRender / 2));
+    posArr.push(particulas[i].pos.x + (anchoOjo / 2), particulas[i].pos.y + heightOjo / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
+  // 2. BUCLE DE RENDERIZADO CONFINADO AL CUADRANTE INFERIOR IZQUIERDO
   let gl = this._renderer.GL;
 
-  // Renderizado doble confinado únicamente al lateral izquierdo inferior
   for (let ojo = 0; ojo < 2; ojo++) {
-    
-    // El ojo 0 y el ojo 1 se dibujan de manera contigua ocupando solo la mitad izquierda de la pantalla, abajo
-    let posXViewport = ojo * anchoOjoRender;
-    let posYViewport = 0; // 0 en WebGL es la parte inferior de la pantalla
+    // Definimos el Viewport: el ojo 0 y el ojo 1 se dibujan pegados, ocupando la mitad izquierda y la mitad inferior (Y = 0)
+    let posXViewport = ojo * anchoOjo;
+    let posYViewport = 0; // En WebGL 0 es la base inferior de la pantalla
 
-    gl.viewport(posXViewport, posYViewport, anchoOjoRender, altoOjoRender);
+    gl.viewport(posXViewport, posYViewport, anchoOjo, heightOjo);
     gl.enable(gl.DEPTH_TEST);
 
     shader(miShader);
-    miShader.setUniform("u_resolution", [anchoOjoRender, altoOjoRender]);
+    miShader.setUniform("u_resolution", [anchoOjo, heightOjo]);
     miShader.setUniform("u_time", millis() * 0.001);
     miShader.setUniform("u_positions", posArr);
     miShader.setUniform("u_colors", colArr);
@@ -192,7 +192,7 @@ function draw() {
     dibujarElementsInteractivos();
   }
 
-  // Restablecer visor completo al final de forma nativa para las alertas globales del sistema
+  // 3. RENDERIZADO DE INTERFAZ GLOBAL
   gl.viewport(0, 0, width, height);
   dibujarIndicadorConexionVR();
 
@@ -251,8 +251,8 @@ function manejarControlesMix() {
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  let anchoOjoRender = width / 4;
-  let altoOjoRender = height / 2;
+  let anchoOjo = width / 4;
+  let heightOjo = height / 2;
 
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     let dx = rotationX * 0.675; 
@@ -270,9 +270,9 @@ function manejarControlesMix() {
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
   if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }   
 
-  // Límites ajustados dinámicamente según el tamaño del cuadrante del viewport
-  p.pos.x = constrain(p.pos.x, -anchoOjoRender / 2, anchoOjoRender / 2);
-  p.pos.y = constrain(p.pos.y, -altoOjoRender / 2, altoOjoRender / 2);
+  // Límites de constrain ajustados a la nueva escala del viewport por ojo
+  p.pos.x = constrain(p.pos.x, -anchoOjo / 2, anchoOjo / 2);
+  p.pos.y = constrain(p.pos.y, -heightOjo / 2, heightOjo / 2);
 
   let movReal = dist(p.pos.x, p.pos.y, posicionAnterior.x, posicionAnterior.y) > 0.3;
 
@@ -386,9 +386,9 @@ function verificarColisionItem() {
 }
 
 function respawnItem() {
-  let anchoOjoRender = width / 4;
-  let altoOjoRender = height / 2;
-  posItem.set(random(-anchoOjoRender * 0.3, anchoOjoRender * 0.3), random(-altoOjoRender * 0.3, altoOjoRender * 0.3));
+  let anchoOjo = width / 4;
+  let heightOjo = height / 2;
+  posItem.set(random(-anchoOjo * 0.3, anchoOjo * 0.3), random(-heightOjo * 0.3, heightOjo * 0.3));
   itemActivo = true; itemVisible = false;
 }
 
