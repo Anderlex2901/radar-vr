@@ -37,11 +37,6 @@ let ultimoBtn1 = 1, ultimoBtn2 = 1, ultimoBtn3 = 1;
 // Control de permisos para sensores móviles
 let sensoresActivados = false;
 
-// VARIABLES DE CALIBRACIÓN DINÁMICA (NUEVAS)
-let centroX = 0;
-let centroY = 0;
-let calibrado = false;
-
 // SECTION DE AUDIO Y VOLÚMENES
 let sonidoMostrarEsfera;
 let sonidoAgarrarEsfera;
@@ -102,7 +97,9 @@ function setup() {
   miShader = createShader(vs, fs);
   posItem = createVector(0, 0);
   
+  // Inicializar conexión inalámbrica local con el ESP32
   inicializarWebSocket();
+
   respawnItem();
 
   for (let i = 0; i < numParticulas; i++) {
@@ -160,7 +157,7 @@ function draw() {
 
   let posArr = []; let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
-    posArr.push(particulas[i].pos.x + width / 2, particulas[i].pos.y + height / 2);
+    posArr.push(particulas[i].pos.x + width / 2, patriculas[i].pos.y + height / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
@@ -228,32 +225,24 @@ function procesarEntradasFisicas() {
   ultimoBtn3 = btn3;
 }
 
-// ── CÓDIGO BASE REESTABLECIDO CON AUTOCALIBRACIÓN AL INICIO ──
+// ── AJUSTE DE OFFSET MANTENIENDO EJES BASE EN MODO HORIZONTAL ──
 function manejarControlesMix() {
   let p = particulas[idManual];
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
+  // 1. CONTROL POR GIROSCOPIO DIRECTO CORREGIDO
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     
-    // Si los sensores ya dieron permiso pero no tomamos la foto del centro, la tomamos acá
-    if (sensoresActivados && !calibrado && rotationX !== 0) {
-      centroX = rotationX;
-      centroY = rotationY;
-      calibrado = true;
-    }
+    // Al estar el celu de costado y parado en las gafas, rotationX mide ~90.
+    // Le restamos 90 para que mirar al frente equivalga a 0 (estático).
+    let rotXCalibrada = rotationX - 90.0;
+    
+    let dx = rotXCalibrada * 0.675; 
+    let dy = -rotationY * 0.675; // rotationY no tiene desvío constante, se mantiene directo.
 
-    // Restamos el centro guardado al valor actual del giroscopio.
-    // Si estás mirando en la posición inicial, el resultado va a ser 0 (Esfera quieta).
-    let rotXFiltrada = rotationX - centroX;
-    let rotYFiltrada = rotationY - centroY;
-
-    // Usamos exactamente tu lógica base del giroscopio directo, pero con los valores calibrados
-    let dx = rotXFiltrada * 0.675; 
-    let dy = -rotYFiltrada * 0.675;
-
-    // Filtro para ignorar micromovimientos basándonos en la desviación del centro
-    if (abs(rotXFiltrada) > 0.4 || abs(rotYFiltrada) > 0.4) {
+    // Filtro para ignorar micromovimientos usando los valores limpios
+    if (abs(rotXCalibrada) > 0.4 || abs(rotationY) > 0.4) {
       p.pos.x += dx;
       p.pos.y += dy;
       seEstaMoviendo = true;
@@ -344,7 +333,7 @@ function dibujarElementsInteractivos() {
 function keyPressed() {
   if (key === 'c' || key === 'C') {
     let tonos = obtenerTonosRandom();
-    particulas[idManual].colClaro = tonos.colClaro;
+    particulas[idManual].colClaro = tonos.claro;
     particulas[idManual].colOscuro = tonos.oscuro;
   }
   if (key === 'v' || key === 'V') {
@@ -387,20 +376,10 @@ function obtenerTonosRandom() {
   return { claro: base, oscuro: [base[0] * 0.3, base[1] * 0.3, base[2] * 0.3] };
 }
 
-function windowResized() { 
-  resizeCanvas(windowWidth, windowHeight); 
-  // Al cambiar el tamaño u orientación, forzamos recalibración para adaptarnos al nuevo modo
-  calibrado = false; 
-}
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
 function touchStarted() {
   if (getAudioContext().state !== 'running') { getAudioContext().resume(); }
-  
-  // Al tocar el cartel, tomamos la posición física actual del celu en el espacio como el punto de inicio (0,0)
-  centroX = rotationX;
-  centroY = rotationY;
-  calibrado = true;
-
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission()
       .then(permissionState => { if (permissionState === 'granted') { sensoresActivados = true; } })
