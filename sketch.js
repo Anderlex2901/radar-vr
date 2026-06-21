@@ -1,4 +1,4 @@
-// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico) - EDICIÓN VR CUADRANTE INFERIOR IZQUIERDO CON EFECTO 3D
+// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 - EDICIÓN VR CUADRANTE INFERIOR IZQUIERDO CON PARALAJE 3D EFECTIVO
 let miShader;
 let particulas = [];
 const numParticulas = 8;
@@ -23,8 +23,8 @@ const paletaColores = [
   [0.0, 0.78, 1.0], [0.94, 0.20, 0.94], [1.0, 0.51, 0.0], [0.66, 1.0, 0.0]
 ];
 
-// ── AJUSTE DE PROFUNDIDAD 3D (DISPARIDAD BINOCULAR) ───
-const desfase3D = 4.5; // Distancia de separación de perspectiva entre ambos ojos
+// ── CONFIGURACIÓN ESTEREOSCÓPICA 3D ───────────────────
+const separacionOjos = 12.0; // Controla la intensidad del efecto de profundidad 3D
 
 // ── VARIABLES GLOBALES DE RED (ESP32) ──────────────────
 let socket;
@@ -61,20 +61,25 @@ const vs = `#version 300 es
   void main() { vTexCoord = aTexCoord; gl_Position = vec4(aPosition, 1.0); }`;
 
 const fs = `#version 300 es
-  precision mediump float;
+  precision highp float;
   in vec2 vTexCoord; out vec4 fragmentColor;
   uniform vec2 u_resolution; uniform float u_time;
   uniform vec2 u_positions[8]; uniform vec3 u_colors[8];
   uniform float u_waveSpeed; uniform float u_waveFreq;
+  uniform float u_eyeOffset; // Recibe el desfase horizontal para generar profundidad en el algoritmo Voronoi
 
   void main() {
     vec2 st = vTexCoord * u_resolution; st.y = u_resolution.y - st.y;
     float dMinima = 100000.0; float dSegundaMinima = 100000.0; int indiceCercano = 0;
+    
     for (int i = 0; i < 8; i++) {
-      float d = distance(st, u_positions[i]);
+      // Replicamos la lógica exacta de tu código Cardboard: desfasamos la coordenada de la partícula en el eje X del shader
+      vec2 posicionParticula = u_positions[i] + vec2(u_eyeOffset, 0.0);
+      float d = distance(st, posicionParticula);
       if (d < dMinima) { dSegundaMinima = dMinima; dMinima = d; indiceCercano = i; }
       else if (d < dSegundaMinima) { dSegundaMinima = d; }
     }
+    
     float ondaPared = sin(dMinima * u_waveFreq - u_time * u_waveSpeed);
     vec3 colorFinal = vec3(0.0);
     if (ondaPared > 0.94) {
@@ -120,7 +125,7 @@ function setup() {
 function draw() {
   background(0); 
   
-  // 1. ACTUALIZACIONES DE LÓGICA
+  // 1. ACTUALIZACIONES DE LÓGICA GLOBAL
   procesarEntradasFisicas();
   manejarControlesMix(); 
   verificarColisionItem();
@@ -153,30 +158,25 @@ function draw() {
     }
   }
 
-  let colArr = [];
+  // Empaquetamos la posición cruda mapeada al centro del viewport reducido
+  let posArr = []; let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
+    posArr.push(particulas[i].pos.x + (anchoOjo / 2), particulas[i].pos.y + heightOjo / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
-  // 2. BUCLE DE RENDERIZADO CONFINADO AL CUADRANTE INFERIOR IZQUIERDO (CON DESFASE 3D)
+  // 2. BUCLE DE RENDERIZADO ESTEREOSCÓPICO (CONFINADO AL LADO INFERIOR IZQUIERDO)
   let gl = this._renderer.GL;
 
   for (let ojo = 0; ojo < 2; ojo++) {
     let posXViewport = ojo * anchoOjo;
-    let posYViewport = 0; 
+    let posYViewport = 0; // Base inferior de la pantalla
 
     gl.viewport(posXViewport, posYViewport, anchoOjo, heightOjo);
     gl.enable(gl.DEPTH_TEST);
 
-    // Calculamos el arreglo de posiciones aplicando el desfase estereoscópico
-    // Ojo izquierdo (0) desplaza los elementos a la derecha, Ojo derecho (1) a la izquierda
-    let posArr = [];
-    let direccionDesfase = (ojo === 0) ? desfase3D : -desfase3D;
-
-    for (let i = 0; i < numParticulas; i++) {
-      let xConDesfase = particulas[i].pos.x + direccionDesfase;
-      posArr.push(xConDesfase + (anchoOjo / 2), particulas[i].pos.y + heightOjo / 2);
-    }
+    // Calculamos el multiplicador del desfase de ojo simétrico como en tu script original
+    let eyeOffset = (ojo === 0) ? -separacionOjos : separacionOjos;
 
     shader(miShader);
     miShader.setUniform("u_resolution", [anchoOjo, heightOjo]);
@@ -185,6 +185,7 @@ function draw() {
     miShader.setUniform("u_colors", colArr);
     miShader.setUniform("u_waveSpeed", velocidadOndas);
     miShader.setUniform("u_waveFreq", frecuenciaOndas);
+    miShader.setUniform("u_eyeOffset", eyeOffset); // Enviamos el offset al uniform correspondiente
     
     beginShape(); 
     vertex(-1, -1, 0, 0, 0); 
@@ -196,11 +197,11 @@ function draw() {
     resetShader();
     gl.disable(gl.DEPTH_TEST);
     
-    // Dibujamos las interfaces interactivas pasándole la dirección de desfase para que coincidan con el shader
-    dibujarElementsInteractivos(direccionDesfase);
+    // Dibujamos las interfaces vectoriales 2D aplicando el mismo desplazamiento
+    dibujarElementsInteractivos(eyeOffset);
   }
 
-  // 3. RENDERIZADO DE INTERFAZ GLOBAL
+  // 3. RENDERIZADO DE INTERFAZ GLOBAL (SOBRE TODO EL LIENZO)
   gl.viewport(0, 0, width, height);
   dibujarIndicadorConexionVR();
 
@@ -317,14 +318,14 @@ function dibujarIndicadorConexionVR() {
   pop();
 }
 
-function dibujarElementsInteractivos(offset3D) {
+function dibujarElementsInteractivos(eyeOffset) {
   let pUser = particulas[idManual];
   
-  // Aplicamos el offset3D en el translate de cada grupo de elementos vectoriales
-  push(); translate(pUser.pos.x + offset3D, pUser.pos.y);
+  push(); translate(pUser.pos.x + eyeOffset, pUser.pos.y);
   for (let i = ondasUsuario.length - 1; i >= 0; i--) {
     let o = ondasUsuario[i]; noFill(); stroke(255, o.a); strokeWeight(2);
-    ellipse(0, 0, o.r * 2); o.r += 0.8; o.a -= 1.5; 
+    ellipse(0, 0, o.r * 2); 
+    if (eyeOffset > 0) { o.r += 0.8; o.a -= 1.5; }
     if (o.a <= 0) ondasUsuario.splice(i, 1);
   }
   rotate(millis() * 0.001); stroke(255, 200); strokeWeight(3);
@@ -332,20 +333,21 @@ function dibujarElementsInteractivos(offset3D) {
 
   if (itemVisible) {
     for (let i = ondasEsfera.length - 1; i >= 0; i--) {
-      let o = ondasEsfera[i]; push(); translate(posItem.x + offset3D, posItem.y);
+      let o = ondasEsfera[i]; push(); translate(posItem.x + eyeOffset, posItem.y);
       noFill(); stroke(255, 255, 0, o.a); strokeWeight(2);
-      ellipse(0, 0, o.r * 2); o.r += 2; o.a -= 2;
+      ellipse(0, 0, o.r * 2); 
+      if (eyeOffset > 0) { o.r += 2; o.a -= 2; }
       if (o.a <= 0) ondasEsfera.splice(i, 1); pop();
     }
   }
 
   if (itemActivo && itemVisible) {
-    push(); translate(posItem.x + offset3D, posItem.y); stroke(255); strokeWeight(3); fill(255, 100); 
+    push(); translate(posItem.x + eyeOffset, posItem.y); stroke(255); strokeWeight(3); fill(255, 100); 
     ellipse(0, 0, radioItem * 2, radioItem * 2); pop();
   }
   
   for (let i = 0; i < numParticulas; i++) {
-    let p = particulas[i]; push(); translate(p.pos.x + offset3D, p.pos.y);
+    let p = particulas[i]; push(); translate(p.pos.x + eyeOffset, p.pos.y);
     if (i === idManual) { stroke(255); strokeWeight(2); noFill(); ellipse(0, 0, 24, 24); } 
     else { 
         noStroke();
