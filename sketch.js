@@ -236,10 +236,10 @@ function manejarControlesMix() {
     
     // Inversión del eje X: quitamos el signo negativo (-) de la versión anterior.
     // Sensibilidad aumentada a 0.675 (0.45 * 1.5) para una respuesta mucho más rápida.
-    let dx = rotationX * 0.675; 
+    let dx = rotationX * 1.5; 
     
     // Mantenemos rotationY en el eje vertical (Y) con la nueva sensibilidad escalada.
-    let dy = -rotationY * 0.675;
+    let dy = -rotationY * 1.5;
 
     // Filtro para ignorar micromovimientos involuntarios del cuello
     if (abs(rotationX) > 0.4 || abs(rotationY) > 0.4) {
