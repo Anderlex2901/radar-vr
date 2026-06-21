@@ -1,4 +1,4 @@
-// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico) - EDICIÓN VR CUADRANTE INFERIOR IZQUIERDO
+// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico) - EDICIÓN VR CUADRANTE INFERIOR IZQUIERDO CON EFECTO 3D
 let miShader;
 let particulas = [];
 const numParticulas = 8;
@@ -22,6 +22,9 @@ const paletaColores = [
   [1.0, 0.84, 0.0], [0.0, 0.86, 0.31], [1.0, 0.20, 0.20],
   [0.0, 0.78, 1.0], [0.94, 0.20, 0.94], [1.0, 0.51, 0.0], [0.66, 1.0, 0.0]
 ];
+
+// ── AJUSTE DE PROFUNDIDAD 3D (DISPARIDAD BINOCULAR) ───
+const desfase3D = 4.5; // Distancia de separación de perspectiva entre ambos ojos
 
 // ── VARIABLES GLOBALES DE RED (ESP32) ──────────────────
 let socket;
@@ -95,7 +98,6 @@ function setup() {
   inicializarWebSocket();
   respawnItem();
 
-  // El área de juego efectiva se calcula para un ojo dentro del cuadrante reducido (width/8 en vez de width/4)
   for (let i = 0; i < numParticulas; i++) {
     let tonos = obtenerTonosRandom();
     particulas.push({ 
@@ -116,7 +118,7 @@ function setup() {
 }
 
 function draw() {
-  background(0); // Fondo negro absoluto en todo el lienzo
+  background(0); 
   
   // 1. ACTUALIZACIONES DE LÓGICA
   procesarEntradasFisicas();
@@ -139,7 +141,6 @@ function draw() {
   
   if (frameCount % 80 === 0) ondasUsuario.push({ r: 0, a: 255 });
   
-  // Dimensiones efectivas de un solo ojo dentro de la cuarta parte de la pantalla
   let anchoOjo = width / 4;
   let heightOjo = height / 2;
 
@@ -147,29 +148,35 @@ function draw() {
     let p = particulas[i];
     if (i !== idManual) {
       p.pos.add(p.vel);
-      // Rebote adaptado al tamaño de ventana de un ojo reducido
       if (p.pos.x < -anchoOjo/2 || p.pos.x > anchoOjo/2) p.vel.x *= -1;
       if (p.pos.y < -heightOjo/2 || p.pos.y > heightOjo/2) p.vel.y *= -1;
     }
   }
 
-  // Mapeo de posiciones absolutas para el shader basándose en el anchoOjo reducido
-  let posArr = []; let colArr = [];
+  let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
-    posArr.push(particulas[i].pos.x + (anchoOjo / 2), particulas[i].pos.y + heightOjo / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
-  // 2. BUCLE DE RENDERIZADO CONFINADO AL CUADRANTE INFERIOR IZQUIERDO
+  // 2. BUCLE DE RENDERIZADO CONFINADO AL CUADRANTE INFERIOR IZQUIERDO (CON DESFASE 3D)
   let gl = this._renderer.GL;
 
   for (let ojo = 0; ojo < 2; ojo++) {
-    // Definimos el Viewport: el ojo 0 y el ojo 1 se dibujan pegados, ocupando la mitad izquierda y la mitad inferior (Y = 0)
     let posXViewport = ojo * anchoOjo;
-    let posYViewport = 0; // En WebGL 0 es la base inferior de la pantalla
+    let posYViewport = 0; 
 
     gl.viewport(posXViewport, posYViewport, anchoOjo, heightOjo);
     gl.enable(gl.DEPTH_TEST);
+
+    // Calculamos el arreglo de posiciones aplicando el desfase estereoscópico
+    // Ojo izquierdo (0) desplaza los elementos a la derecha, Ojo derecho (1) a la izquierda
+    let posArr = [];
+    let direccionDesfase = (ojo === 0) ? desfase3D : -desfase3D;
+
+    for (let i = 0; i < numParticulas; i++) {
+      let xConDesfase = particulas[i].pos.x + direccionDesfase;
+      posArr.push(xConDesfase + (anchoOjo / 2), particulas[i].pos.y + heightOjo / 2);
+    }
 
     shader(miShader);
     miShader.setUniform("u_resolution", [anchoOjo, heightOjo]);
@@ -189,7 +196,8 @@ function draw() {
     resetShader();
     gl.disable(gl.DEPTH_TEST);
     
-    dibujarElementsInteractivos();
+    // Dibujamos las interfaces interactivas pasándole la dirección de desfase para que coincidan con el shader
+    dibujarElementsInteractivos(direccionDesfase);
   }
 
   // 3. RENDERIZADO DE INTERFAZ GLOBAL
@@ -270,7 +278,6 @@ function manejarControlesMix() {
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
   if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }   
 
-  // Límites de constrain ajustados a la nueva escala del viewport por ojo
   p.pos.x = constrain(p.pos.x, -anchoOjo / 2, anchoOjo / 2);
   p.pos.y = constrain(p.pos.y, -heightOjo / 2, heightOjo / 2);
 
@@ -310,10 +317,11 @@ function dibujarIndicadorConexionVR() {
   pop();
 }
 
-function dibujarElementsInteractivos() {
+function dibujarElementsInteractivos(offset3D) {
   let pUser = particulas[idManual];
   
-  push(); translate(pUser.pos.x, pUser.pos.y);
+  // Aplicamos el offset3D en el translate de cada grupo de elementos vectoriales
+  push(); translate(pUser.pos.x + offset3D, pUser.pos.y);
   for (let i = ondasUsuario.length - 1; i >= 0; i--) {
     let o = ondasUsuario[i]; noFill(); stroke(255, o.a); strokeWeight(2);
     ellipse(0, 0, o.r * 2); o.r += 0.8; o.a -= 1.5; 
@@ -324,7 +332,7 @@ function dibujarElementsInteractivos() {
 
   if (itemVisible) {
     for (let i = ondasEsfera.length - 1; i >= 0; i--) {
-      let o = ondasEsfera[i]; push(); translate(posItem.x, posItem.y);
+      let o = ondasEsfera[i]; push(); translate(posItem.x + offset3D, posItem.y);
       noFill(); stroke(255, 255, 0, o.a); strokeWeight(2);
       ellipse(0, 0, o.r * 2); o.r += 2; o.a -= 2;
       if (o.a <= 0) ondasEsfera.splice(i, 1); pop();
@@ -332,12 +340,12 @@ function dibujarElementsInteractivos() {
   }
 
   if (itemActivo && itemVisible) {
-    push(); translate(posItem.x, posItem.y); stroke(255); strokeWeight(3); fill(255, 100); 
+    push(); translate(posItem.x + offset3D, posItem.y); stroke(255); strokeWeight(3); fill(255, 100); 
     ellipse(0, 0, radioItem * 2, radioItem * 2); pop();
   }
   
   for (let i = 0; i < numParticulas; i++) {
-    let p = particulas[i]; push(); translate(p.pos.x, p.pos.y);
+    let p = particulas[i]; push(); translate(p.pos.x + offset3D, p.pos.y);
     if (i === idManual) { stroke(255); strokeWeight(2); noFill(); ellipse(0, 0, 24, 24); } 
     else { 
         noStroke();
