@@ -1,4 +1,4 @@
-// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 - EDICIÓN VR CUADRANTE COMPACTO CORREGIDO
+// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 - EDICIÓN VR PANTALLA COMPLETA CON PARALAJE CORREGIDO
 let miShader;
 let particulas = [];
 const numParticulas = 8;
@@ -13,7 +13,7 @@ let itemActivo = false;
 let itemVisible = false; 
 let tiempoVisibilidad = 0; 
 let posItem;
-const radioItem = 12; // Reducido levemente para que machee con la escala del cuadrante 
+const radioItem = 20; // Restablecido al tamaño original macro
 
 let ondasUsuario = []; 
 let ondasEsfera = []; 
@@ -35,7 +35,7 @@ let btn1 = 1, btn2 = 1, btn3 = 1;
 let ultimoBtn1 = 1, ultimoBtn2 = 1, ultimoBtn3 = 1;
 let sensoresActivados = false;
 
-// SECTION DE AUDIO Y VOLÚMENES
+// SECCIÓN DE AUDIO Y VOLÚMENES
 let sonidoMostrarEsfera;
 let sonidoAgarrarEsfera;
 let sonidoMovimientoUsuario;
@@ -66,7 +66,7 @@ const fs = `#version 300 es
   uniform vec2 u_resolution; uniform float u_time;
   uniform vec2 u_positions[8]; uniform vec3 u_colors[8];
   uniform float u_waveSpeed; uniform float u_waveFreq;
-  uniform float u_eyeOffset; 
+  uniform float u_eyeOffset; // Conservamos el desfasaje en el shader para el fondo 3D
 
   void main() {
     vec2 st = vTexCoord * u_resolution; st.y = u_resolution.y - st.y;
@@ -105,7 +105,7 @@ function setup() {
   for (let i = 0; i < numParticulas; i++) {
     let tonos = obtenerTonosRandom();
     particulas.push({ 
-      pos: createVector(random(-width/16, width/16), random(-height/8, height/8)), 
+      pos: createVector(random(-width/4, width/4), random(-height/2, height/2)), // Volvió a límites macro
       vel: p5.Vector.random2D().mult(random(0.8, 1.8)), 
       colClaro: tonos.claro, colOscuro: tonos.oscuro 
     });
@@ -124,7 +124,7 @@ function setup() {
 function draw() {
   background(0); 
   
-  // 1. ACTUALIZACIONES DE LÓGICA GLOBAL
+  // 1. ACTUALIZACIONES DE LÓGICA GLOBAL (Una vez por frame)
   procesarEntradasFisicas();
   manejarControlesMix(); 
   verificarColisionItem();
@@ -145,38 +145,37 @@ function draw() {
   
   if (frameCount % 80 === 0) ondasUsuario.push({ r: 0, a: 255 });
   
-  let anchoOjo = width / 4;
-  let heightOjo = height / 2;
+  let mitadAncho = width / 2; // Volvemos a renderizar a pantalla dividida tradicional (Izquierda y Derecha)
 
   for (let i = 0; i < numParticulas; i++) {
     let p = particulas[i];
     if (i !== idManual) {
       p.pos.add(p.vel);
-      if (p.pos.x < -anchoOjo/2 || p.pos.x > anchoOjo/2) p.vel.x *= -1;
-      if (p.pos.y < -heightOjo/2 || p.pos.y > heightOjo/2) p.vel.y *= -1;
+      if (p.pos.x < -mitadAncho/2 || p.pos.x > mitadAncho/2) p.vel.x *= -1;
+      if (p.pos.y < -height/2 || p.pos.y > height/2) p.vel.y *= -1;
     }
   }
 
   let posArr = []; let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
-    posArr.push(particulas[i].pos.x + (anchoOjo / 2), particulas[i].pos.y + heightOjo / 2);
+    posArr.push(particulas[i].pos.x + (mitadAncho / 2), particulas[i].pos.y + height / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
-  // 2. BUCLE DE RENDERIZADO ESTEREOSCÓPICO (CUADRANTE INFERIOR IZQUIERDO)
+  // 2. BUCLE DE RENDERIZADO ESTEREOSCÓPICO (PANTALLA DIVIDIDA COMPLETA)
   let gl = this._renderer.GL;
 
   for (let ojo = 0; ojo < 2; ojo++) {
-    let posXViewport = ojo * anchoOjo;
+    let posXViewport = ojo * mitadAncho;
     let posYViewport = 0; 
 
-    gl.viewport(posXViewport, posYViewport, anchoOjo, heightOjo);
+    gl.viewport(posXViewport, posYViewport, mitadAncho, height);
     gl.enable(gl.DEPTH_TEST);
 
     let eyeOffset = (ojo === 0) ? -separacionOjos : separacionOjos;
 
     shader(miShader);
-    miShader.setUniform("u_resolution", [anchoOjo, heightOjo]);
+    miShader.setUniform("u_resolution", [mitadAncho, height]);
     miShader.setUniform("u_time", millis() * 0.001);
     miShader.setUniform("u_positions", posArr);
     miShader.setUniform("u_colors", colArr);
@@ -194,6 +193,7 @@ function draw() {
     resetShader();
     gl.disable(gl.DEPTH_TEST);
     
+    // Elementos vectoriales 2D aplicando el desfasaje
     dibujarElementsInteractivos(eyeOffset);
   }
 
@@ -256,8 +256,7 @@ function manejarControlesMix() {
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  let anchoOjo = width / 4;
-  let heightOjo = height / 2;
+  let mitadAncho = width / 2;
 
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     let dx = rotationX * 0.675; 
@@ -275,8 +274,8 @@ function manejarControlesMix() {
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
   if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }   
 
-  p.pos.x = constrain(p.pos.x, -anchoOjo / 2, anchoOjo / 2);
-  p.pos.y = constrain(p.pos.y, -heightOjo / 2, heightOjo / 2);
+  p.pos.x = constrain(p.pos.x, -mitadAncho / 2, mitadAncho / 2);
+  p.pos.y = constrain(p.pos.y, -height / 2, height / 2);
 
   let movReal = dist(p.pos.x, p.pos.y, posicionAnterior.x, posicionAnterior.y) > 0.3;
 
@@ -317,47 +316,47 @@ function dibujarIndicadorConexionVR() {
 function dibujarElementsInteractivos(eyeOffset) {
   let pUser = particulas[idManual];
   
-  // 1. DETALLE 2: ONDAS DEL ENTORNO (Ahora escaladas más chicas y lentas)
+  // ONDAS DE LA ESFERA INVISIBLE (Se ejecutan primero en el fondo, restablecidas a velocidad/escala macro original)
   if (itemVisible) {
     for (let i = ondasEsfera.length - 1; i >= 0; i--) {
       let o = ondasEsfera[i]; push(); translate(posItem.x + eyeOffset, posItem.y);
-      noFill(); stroke(255, 255, 0, o.a); strokeWeight(1.5);
+      noFill(); stroke(255, 255, 0, o.a); strokeWeight(2);
       ellipse(0, 0, o.r * 2); 
-      if (eyeOffset > 0) { o.r += 0.8; o.a -= 2.5; } // Crecimiento más contenido y atenuación rápida
+      if (eyeOffset > 0) { o.r += 2; o.a -= 2; } // Restablecidas físicas estándar
       if (o.a <= 0) ondasEsfera.splice(i, 1); pop();
     }
   }
 
-  // ONDAS DEL USUARIO (Se dibujan abajo de la esfera)
+  // ONDAS DEL USUARIO (Fondo)
   push(); translate(pUser.pos.x + eyeOffset, pUser.pos.y);
   for (let i = ondasUsuario.length - 1; i >= 0; i--) {
-    let o = ondasUsuario[i]; noFill(); stroke(255, o.a); strokeWeight(1.5);
+    let o = ondasUsuario[i]; noFill(); stroke(255, o.a); strokeWeight(2);
     ellipse(0, 0, o.r * 2); 
-    if (eyeOffset > 0) { o.r += 0.3; o.a -= 2.0; } // Ondas de expansión lentas y pequeñas
+    if (eyeOffset > 0) { o.r += 0.8; o.a -= 1.5; } // Restablecidas físicas estándar
     if (o.a <= 0) ondasUsuario.splice(i, 1);
   }
   pop();
 
-  // 2. DETALLE 1: CAPA SUPERIOR (La esfera del usuario y el radar se dibujan AL FINAL para quedar Adelante)
+  // CAPA SUPERIOR (Se dibuja al final para quedar por DELANTE de todas las ondas)
   if (itemActivo && itemVisible) {
-    push(); translate(posItem.x + eyeOffset, posItem.y); stroke(255); strokeWeight(2); fill(255, 100); 
+    push(); translate(posItem.x + eyeOffset, posItem.y); stroke(255); strokeWeight(3); fill(255, 100); 
     ellipse(0, 0, radioItem * 2, radioItem * 2); pop();
   }
   
   for (let i = 0; i < numParticulas; i++) {
     let p = particulas[i]; push(); translate(p.pos.x + eyeOffset, p.pos.y);
     if (i === idManual) { 
-      // Dibujado del radar y aguja sobre el usuario
-      rotate(millis() * 0.001); stroke(255, 200); strokeWeight(2);
-      line(0, 0, 0, -60); // Aguja del radar acortada a la escala del ojo
-      stroke(255); strokeWeight(2); noFill(); ellipse(0, 0, 20, 20); 
-      fill(255); noStroke(); ellipse(0, 0, 6, 6);
+      // Dibujado del radar y aguja sobre el usuario (Medidas originales)
+      rotate(millis() * 0.001); stroke(255, 200); strokeWeight(3);
+      line(0, 0, 0, -150); 
+      stroke(255); strokeWeight(2); noFill(); ellipse(0, 0, 24, 24); 
+      fill(255); noStroke(); ellipse(0, 0, 8, 8);
     } else { 
       noStroke();
       fill(p.colClaro[0]*255, p.colClaro[1]*255, p.colClaro[2]*255, 200);
-      ellipse(0, 0, 10, 10); 
+      ellipse(0, 0, 14, 14); 
       fill(p.colOscuro[0]*255, p.colOscuro[1]*255, p.colOscuro[2]*255, 255);
-      ellipse(0, 0, 5, 5); 
+      ellipse(0, 0, 7, 7); 
     } pop();
   }
 }
@@ -386,7 +385,7 @@ function keyPressed() {
 function verificarColisionItem() {
   if (itemActivo) {
     let d = dist(particulas[idManual].pos.x, particulas[idManual].pos.y, posItem.x, posItem.y);
-    if (d < radioItem + 8) {
+    if (d < radioItem + 10) {
       sonidoAgarrarEsfera.play();
       ondasEsfera = []; 
       for (let p of particulas) {
@@ -399,10 +398,8 @@ function verificarColisionItem() {
 }
 
 function respawnItem() {
-  let anchoOjo = width / 4;
-  let heightOjo = height / 2;
-  // DETALLE 3: Ampliado el rango random de 0.3 a 0.75 para dispersar la esfera por todo el cuadrante útil
-  posItem.set(random(-anchoOjo * 0.375, anchoOjo * 0.375), random(-heightOjo * 0.375, heightOjo * 0.375));
+  // El rango del respawn vuelve a dispersarse de manera óptima por la mitad de la pantalla
+  posItem.set(random(-width * 0.15, width * 0.15), random(-height * 0.3, height * 0.3));
   itemActivo = true; itemVisible = false;
 }
 
