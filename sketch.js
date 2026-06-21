@@ -97,9 +97,7 @@ function setup() {
   miShader = createShader(vs, fs);
   posItem = createVector(0, 0);
   
-  // Inicializar conexión inalámbrica local con el ESP32
   inicializarWebSocket();
-
   respawnItem();
 
   for (let i = 0; i < numParticulas; i++) {
@@ -225,31 +223,32 @@ function procesarEntradasFisicas() {
   ultimoBtn3 = btn3;
 }
 
-// ── FUSIÓN DE CONTROLES MIX CALIBRADA Y OPTIMIZADA (SENSIBILIDAD x1.5) ──
+// ── FUSIÓN DE CONTROLES MIX RECALIBRADA PARA VISOR VR (POSICIÓN VERTICAL) ──
 function manejarControlesMix() {
   let p = particulas[idManual];
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  // 1. CONTROL POR GIROSCOPIO DIRECTO (Ejes corregidos e inversión aplicada)
+  // 1. CONTROL POR GIROSCOPIO ADAPTADO A VISOR VR
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     
-    // Inversión del eje X: quitamos el signo negativo (-) de la versión anterior.
-    // Sensibilidad aumentada a 0.675 (0.45 * 1.5) para una respuesta mucho más rápida.
-    let dx = rotationX * 0.675; 
+    // EJE X (Girar la cabeza a los lados): Usamos rotationY. Mantiene la sensibilidad previa de 0.675.
+    let dx = rotationY * 0.675; 
     
-    // Mantenemos rotationY en el eje vertical (Y) con la nueva sensibilidad escalada.
-    let dy = -rotationY * 0.675;
+    // EJE Y (Mirar arriba/abajo): Restamos 90 grados para que la posición quieta ("cero") 
+    // sea cuando el celular está perfectamente vertical/parado frente a los ojos.
+    let inclinacionVertical = rotationX - 90.0;
+    let dy = inclinacionVertical * 0.75; // Sensibilidad del eje Y ligeramente ajustada para VR
 
-    // Filtro para ignorar micromovimientos involuntarios del cuello
-    if (abs(rotationX) > 0.4 || abs(rotationY) > 0.4) {
+    // Filtro para ignorar micromovimientos del cuello (Ajustado a la nueva escala de inclinación)
+    if (abs(rotationY) > 0.4 || abs(inclinacionVertical) > 0.4) {
       p.pos.x += dx;
       p.pos.y += dy;
       seEstaMoviendo = true;
     }
   }
   
-  // 2. CONTROL POR TECLADO
+  // 2. CONTROL POR TECLADO (Mantiene compatibilidad para pruebas)
   if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { p.pos.x -= velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { p.pos.x += velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
@@ -333,7 +332,7 @@ function dibujarElementsInteractivos() {
 function keyPressed() {
   if (key === 'c' || key === 'C') {
     let tonos = obtenerTonosRandom();
-    particulas[idManual].colClaro = tonos.claro;
+    particulas[idManual].colClaro = tonos.colClaro;
     particulas[idManual].colOscuro = tonos.oscuro;
   }
   if (key === 'v' || key === 'V') {
