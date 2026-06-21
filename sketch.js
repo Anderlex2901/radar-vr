@@ -37,6 +37,11 @@ let ultimoBtn1 = 1, ultimoBtn2 = 1, ultimoBtn3 = 1;
 // Control de permisos para sensores móviles
 let sensoresActivados = false;
 
+// VARIABLES DE CALIBRACIÓN DINÁMICA (NUEVAS)
+let centroX = 0;
+let centroY = 0;
+let calibrado = false;
+
 // SECTION DE AUDIO Y VOLÚMENES
 let sonidoMostrarEsfera;
 let sonidoAgarrarEsfera;
@@ -223,33 +228,39 @@ function procesarEntradasFisicas() {
   ultimoBtn3 = btn3;
 }
 
-// ── FUSIÓN DE CONTROLES MIX CORREGIDA PARA CELULAR HORIZONTAL (VISOR VR) ──
+// ── CÓDIGO BASE REESTABLECIDO CON AUTOCALIBRACIÓN AL INICIO ──
 function manejarControlesMix() {
   let p = particulas[idManual];
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  // 1. CONTROL POR GIROSCOPIO (Calibrado para pantalla horizontal en las gafas)
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     
-    // EJE X (Girar a los lados): En modo horizontal, este movimiento lo detecta rotationX.
-    // Restamos 90 para que mirar al frente sea el punto de equilibrio (0).
-    let inclinacionHorizontal = rotationX - 90.0;
-    let dx = inclinacionHorizontal * 0.675; 
-    
-    // EJE Y (Mirar arriba/abajo): En modo horizontal, este movimiento lo detecta rotationY.
-    // Invertimos el signo (-) para que al mirar arriba la esfera suba, y al mirar abajo baje.
-    let dy = -rotationY * 0.675;
+    // Si los sensores ya dieron permiso pero no tomamos la foto del centro, la tomamos acá
+    if (sensoresActivados && !calibrado && rotationX !== 0) {
+      centroX = rotationX;
+      centroY = rotationY;
+      calibrado = true;
+    }
 
-    // Filtro para ignorar micromovimientos del cuello
-    if (abs(inclinacionHorizontal) > 0.4 || abs(rotationY) > 0.4) {
+    // Restamos el centro guardado al valor actual del giroscopio.
+    // Si estás mirando en la posición inicial, el resultado va a ser 0 (Esfera quieta).
+    let rotXFiltrada = rotationX - centroX;
+    let rotYFiltrada = rotationY - centroY;
+
+    // Usamos exactamente tu lógica base del giroscopio directo, pero con los valores calibrados
+    let dx = rotXFiltrada * 0.675; 
+    let dy = -rotYFiltrada * 0.675;
+
+    // Filtro para ignorar micromovimientos basándonos en la desviación del centro
+    if (abs(rotXFiltrada) > 0.4 || abs(rotYFiltrada) > 0.4) {
       p.pos.x += dx;
       p.pos.y += dy;
       seEstaMoviendo = true;
     }
   }
   
-  // 2. CONTROL POR TECLADO (Se mantiene igual para pruebas en PC)
+  // 2. CONTROL POR TECLADO
   if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { p.pos.x -= velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { p.pos.x += velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
@@ -376,10 +387,20 @@ function obtenerTonosRandom() {
   return { claro: base, oscuro: [base[0] * 0.3, base[1] * 0.3, base[2] * 0.3] };
 }
 
-function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+function windowResized() { 
+  resizeCanvas(windowWidth, windowHeight); 
+  // Al cambiar el tamaño u orientación, forzamos recalibración para adaptarnos al nuevo modo
+  calibrado = false; 
+}
 
 function touchStarted() {
   if (getAudioContext().state !== 'running') { getAudioContext().resume(); }
+  
+  // Al tocar el cartel, tomamos la posición física actual del celu en el espacio como el punto de inicio (0,0)
+  centroX = rotationX;
+  centroY = rotationY;
+  calibrado = true;
+
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission()
       .then(permissionState => { if (permissionState === 'granted') { sensoresActivados = true; } })
