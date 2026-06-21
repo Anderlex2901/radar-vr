@@ -1,4 +1,4 @@
-// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico)
+// Radar Voronoi por Shaders (WEBGL2) + Interfaz Física ESP32 (Inalámbrico) - EDICIÓN VR ESTEREOSCÓPICA
 let miShader;
 let particulas = [];
 const numParticulas = 8;
@@ -97,15 +97,14 @@ function setup() {
   miShader = createShader(vs, fs);
   posItem = createVector(0, 0);
   
-  // Inicializar conexión inalámbrica local con el ESP32
   inicializarWebSocket();
-
   respawnItem();
 
+  // El área de juego efectiva ahora está confinada a la mitad del ancho (ojo único)
   for (let i = 0; i < numParticulas; i++) {
     let tonos = obtenerTonosRandom();
     particulas.push({ 
-      pos: createVector(random(-width/4, width/4), random(-height/4, height/4)), 
+      pos: createVector(random(-width/8, width/8), random(-height/4, height/4)), 
       vel: p5.Vector.random2D().mult(random(0.8, 1.8)), 
       colClaro: tonos.claro, colOscuro: tonos.oscuro 
     });
@@ -123,9 +122,8 @@ function setup() {
 
 function draw() {
   background(0);
-  let gl = this._renderer.GL;
-  gl.enable(gl.DEPTH_TEST);
-
+  
+  // 1. ACTUALIZACIONES DE LÓGICA (Se ejecutan una sola vez por frame para evitar desfasajes)
   procesarEntradasFisicas();
   manejarControlesMix(); 
   verificarColisionItem();
@@ -150,30 +148,54 @@ function draw() {
     let p = particulas[i];
     if (i !== idManual) {
       p.pos.add(p.vel);
-      if (p.pos.x < -width/2 || p.pos.x > width/2) p.vel.x *= -1;
+      // Rebote adaptado a las dimensiones de un solo ojo
+      if (p.pos.x < -width/4 || p.pos.x > width/4) p.vel.x *= -1;
       if (p.pos.y < -height/2 || p.pos.y > height/2) p.vel.y *= -1;
     }
   }
 
+  // Mapeo de posiciones absolutas para el shader basándose en el ojo individual (ancho de un solo ojo = width/2)
   let posArr = []; let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
-    posArr.push(particulas[i].pos.x + width / 2, particulas[i].pos.y + height / 2);
+    posArr.push(particulas[i].pos.x + (width / 4), particulas[i].pos.y + height / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
-  shader(miShader);
-  miShader.setUniform("u_resolution", [width, height]);
-  miShader.setUniform("u_time", millis() * 0.001);
-  miShader.setUniform("u_positions", posArr);
-  miShader.setUniform("u_colors", colArr);
-  miShader.setUniform("u_waveSpeed", velocidadOndas);
-  miShader.setUniform("u_waveFreq", frecuenciaOndas);
-  beginShape(); vertex(-1, -1, 0, 0, 0); vertex(1, -1, 0, 1, 0); vertex(1, 1, 0, 1, 1); vertex(-1, 1, 0, 0, 1); endShape(CLOSE);
-  
-  resetShader();
-  gl.disable(gl.DEPTH_TEST);
-  dibujarElementsInteractivos();
-  dibujarIndicadorConexion();
+  // 2. BUCLE DE RENDERIZADO ESTEREOSCÓPICO (Ojo Izquierdo [0] y Ojo Derecho [1])
+  let gl = this._renderer.GL;
+  let anchoOjo = width / 2;
+
+  for (let ojo = 0; ojo < 2; ojo++) {
+    // Definimos qué porción física de la pantalla del celular se va a usar en este ciclo
+    gl.viewport(ojo * anchoOjo, 0, anchoOjo, height);
+    gl.enable(gl.DEPTH_TEST);
+
+    shader(miShader);
+    // Le pasamos al shader la resolución exacta de un ojo para que no se estire el Voronoi
+    miShader.setUniform("u_resolution", [anchoOjo, height]);
+    miShader.setUniform("u_time", millis() * 0.001);
+    miShader.setUniform("u_positions", posArr);
+    miShader.setUniform("u_colors", colArr);
+    miShader.setUniform("u_waveSpeed", velocidadOndas);
+    miShader.setUniform("u_waveFreq", frecuenciaOndas);
+    
+    beginShape(); 
+    vertex(-1, -1, 0, 0, 0); 
+    vertex(1, -1, 0, 1, 0); 
+    vertex(1, 1, 0, 1, 1); 
+    vertex(-1, 1, 0, 0, 1); 
+    endShape(CLOSE);
+    
+    resetShader();
+    gl.disable(gl.DEPTH_TEST);
+    
+    // Dibujamos las esferas, líneas y ondas sobre este ojo
+    dibujarElementsInteractivos();
+  }
+
+  // 3. RENDERIZADO DE INTERFAZ GLOBAL (Se dibuja completo al final sobre todo el lienzo)
+  gl.viewport(0, 0, width, height);
+  dibujarIndicadorConexionVR();
 
   if (!sensoresActivados && typeof DeviceOrientationEvent !== 'undefined') {
     dibujarCartelPermisos();
@@ -184,12 +206,12 @@ function dibujarCartelPermisos() {
   push();
   resetShader();
   translate(0, 0, 10); 
-  fill(0, 0, 0, 200);
-  rect(-150, -30, 300, 60, 10);
+  fill(0, 0, 0, 220);
+  rect(-160, -35, 320, 70, 12);
   fill(255);
   textAlign(CENTER, CENTER);
   textSize(14);
-  text("TOQUE LA PANTALLA\npara activar el visor", 0, 0);
+  text("TOQUE LA PANTALLA\npara activar visor VR", 0, 0);
   pop();
 }
 
@@ -225,24 +247,19 @@ function procesarEntradasFisicas() {
   ultimoBtn3 = btn3;
 }
 
-// ── FUSIÓN DE CONTROLES MIX CALIBRADA Y OPTIMIZADA (SENSIBILIDAD x1.5) ──
 function manejarControlesMix() {
   let p = particulas[idManual];
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  // 1. CONTROL POR GIROSCOPIO DIRECTO (Ejes corregidos e inversión aplicada)
+  // 1. CONTROL POR GIROSCOPIO DIRECTO (Ejes base estables)
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     
-    // Inversión del eje X: quitamos el signo negativo (-) de la versión anterior.
-    // Sensibilidad aumentada a 0.675 (0.45 * 1.5) para una respuesta mucho más rápida.
     let dx = rotationX * 0.675; 
-    
-    // Mantenemos rotationY en el eje vertical (Y) con la nueva sensibilidad escalada.
     let dy = -rotationY * 0.675;
 
-    // Filtro para ignorar micromovimientos involuntarios del cuello
     if (abs(rotationX) > 0.4 || abs(rotationY) > 0.4) {
+      // Movimiento al doble de velocidad
       p.pos.x += dx * 2.0;
       p.pos.y += dy * 2.0;
       seEstaMoviendo = true;
@@ -255,7 +272,8 @@ function manejarControlesMix() {
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
   if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }   
 
-  p.pos.x = constrain(p.pos.x, -width / 2, width / 2);
+  // Acotado al ancho adaptado del ojo individual (-width/4 a width/4)
+  p.pos.x = constrain(p.pos.x, -width / 4, width / 4);
   p.pos.y = constrain(p.pos.y, -height / 2, height / 2);
 
   let movReal = dist(p.pos.x, p.pos.y, posicionAnterior.x, posicionAnterior.y) > 0.3;
@@ -284,11 +302,15 @@ function inicializarWebSocket() {
   socket.onclose = function() { setTimeout(inicializarWebSocket, 2000); };
 }
 
-function dibujarIndicadorConexion() {
-  push(); translate(-width/2 + 20, -height/2 + 20); noStroke();
+function dibujarIndicadorConexionVR() {
+  push(); 
+  // Lo posicionamos arriba a la izquierda del lienzo general de la pantalla
+  translate(-width/2 + 20, -height/2 + 20); 
+  noStroke();
   if (socket && socket.readyState === WebSocket.OPEN) { fill(0, 255, 100); } 
   else { fill(255, 50, 50); }
-  ellipse(0, 0, 12, 12); pop();
+  ellipse(0, 0, 12, 12); 
+  pop();
 }
 
 function dibujarElementsInteractivos() {
@@ -366,8 +388,9 @@ function verificarColisionItem() {
   }
 }
 
+// Rangos de aparición calculados para permanecer en la visual simétrica de ambos ojos
 function respawnItem() {
-  posItem.set(random(-width * 0.3, width * 0.3), random(-height * 0.3, height * 0.3));
+  posItem.set(random(-width * 0.15, width * 0.15), random(-height * 0.3, height * 0.3));
   itemActivo = true; itemVisible = false;
 }
 
