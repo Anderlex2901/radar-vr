@@ -157,7 +157,7 @@ function draw() {
 
   let posArr = []; let colArr = [];
   for (let i = 0; i < numParticulas; i++) {
-    posArr.push(particulas[i].pos.x + width / 2, patriculas[i].pos.y + height / 2);
+    posArr.push(particulas[i].pos.x + width / 2, particulas[i].pos.y + height / 2);
     colArr.push(particulas[i].colClaro[0], particulas[i].colClaro[1], particulas[i].colClaro[2]);
   }
 
@@ -225,24 +225,24 @@ function procesarEntradasFisicas() {
   ultimoBtn3 = btn3;
 }
 
-// ── AJUSTE DE OFFSET MANTENIENDO EJES BASE EN MODO HORIZONTAL ──
+// ── FUSIÓN DE CONTROLES MIX CALIBRADA Y OPTIMIZADA (SENSIBILIDAD x1.5) ──
 function manejarControlesMix() {
   let p = particulas[idManual];
   let posicionAnterior = p.pos.copy();
   let seEstaMoviendo = false;
 
-  // 1. CONTROL POR GIROSCOPIO DIRECTO CORREGIDO
+  // 1. CONTROL POR GIROSCOPIO DIRECTO (Ejes corregidos e inversión aplicada)
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
     
-    // Al estar el celu de costado y parado en las gafas, rotationX mide ~90.
-    // Le restamos 90 para que mirar al frente equivalga a 0 (estático).
-    let rotXCalibrada = rotationX - 90.0;
+    // Inversión del eje X: quitamos el signo negativo (-) de la versión anterior.
+    // Sensibilidad aumentada a 0.675 (0.45 * 1.5) para una respuesta mucho más rápida.
+    let dx = rotationX * 0.675; 
     
-    let dx = rotXCalibrada * 0.675; 
-    let dy = -rotationY * 0.675; // rotationY no tiene desvío constante, se mantiene directo.
+    // Mantenemos rotationY en el eje vertical (Y) con la nueva sensibilidad escalada.
+    let dy = -rotationY * 0.675;
 
-    // Filtro para ignorar micromovimientos usando los valores limpios
-    if (abs(rotXCalibrada) > 0.4 || abs(rotationY) > 0.4) {
+    // Filtro para ignorar micromovimientos involuntarios del cuello
+    if (abs(rotationX) > 0.4 || abs(rotationY) > 0.4) {
       p.pos.x += dx;
       p.pos.y += dy;
       seEstaMoviendo = true;
