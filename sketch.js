@@ -28,7 +28,7 @@ const separacionOjos = 12.0;
 
 // ── VARIABLES GLOBALES DE RED (ESP32) ──────────────────
 let socket;
-let ipESP32 = "192.168.1.50"; 
+let ipESP32 = "10.101.33.3"; 
 
 let pot1 = 0.0, pot2 = 0.0;
 let btn1 = 1, btn2 = 1, btn3 = 1;
