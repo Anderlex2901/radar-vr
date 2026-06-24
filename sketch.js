@@ -259,16 +259,28 @@ function manejarControlesMix() {
   let mitadAncho = width / 2;
 
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
-    let dx = rotationX * 0.675; 
-    let dy = -rotationY * 0.675;
+    
+    // ── CORRECCIÓN GIROSCOPIO MODO VR HORIZONTAL ───────────────────────
+    
+    // 1. Invertimos el movimiento lateral (Y) si es necesario.
+    // 2. Para el movimiento vertical (X), le restamos 90 grados. 
+    //    Esto desplaza el punto "quieto" de la mesa (90°) hacia el frente de tus ojos (0° netos).
+    //    Multiplicamos por -1 para invertir la dirección (mirar arriba = sube).
+    
+    let dx = rotationY * 0.675; 
+    let dy = -(rotationX - 90) * 0.675; 
 
-    if (abs(rotationX) > 0.4 || abs(rotationY) > 0.4) {
+    // Umbral de tolerancia (Deadzone) corregido para la nueva postura frente a los ojos
+    if (abs(rotationY) > 0.4 || abs(rotationX - 90) > 0.4) {
       p.pos.x += dx * 2.0;
       p.pos.y += dy * 2.0;
       seEstaMoviendo = true;
     }
+    
+    // ───────────────────────────────────────────────────────────────────
   }
   
+  // Controles de teclado para pruebas en PC (se mantienen intactos)
   if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { p.pos.x -= velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { p.pos.x += velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
