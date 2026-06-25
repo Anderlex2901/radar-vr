@@ -106,6 +106,16 @@ let orientacionGamma = 0;
 
 
 
+// ── FILTRO COMPLEMENTARIO ──────────────────────────────
+
+let anguloFiltradoX = 0;
+
+let anguloFiltradoY = 0;
+
+let ultimoTiempoMotion = null;
+
+
+
 function preload() {
 
   sonidoMostrarEsfera = loadSound('mostrar_esfera.mp3');
@@ -248,16 +258,42 @@ function setup() {
 
 
 
-  // Usar devicemotion con atan2 sobre la gravedad: sin límites de ±90°
+  // Filtro complementario: combina acelerómetro + giroscopio para ángulo continuo sin saltos
   window.addEventListener('devicemotion', function(e) {
 
     let acc = e.accelerationIncludingGravity;
 
-    if (!acc) return;
+    let gyr = e.rotationRate;
 
-    // atan2 sobre la gravedad da inclinación continua sin saltos en ningún ángulo
-    orientacionGamma = Math.atan2(acc.x, acc.z) * (180 / Math.PI); // lateral
-    orientacionBeta  = Math.atan2(acc.y, acc.z) * (180 / Math.PI); // adelante/atrás
+    if (!acc || !gyr) return;
+
+
+
+    let ahora = Date.now();
+
+    let dt = ultimoTiempoMotion ? (ahora - ultimoTiempoMotion) / 1000 : 0.016;
+
+    ultimoTiempoMotion = ahora;
+
+
+
+    // Acelerómetro: referencia estable a largo plazo pero con saltos en ±180°
+    let accelX = Math.atan2(acc.x, acc.z) * (180 / Math.PI);
+
+    let accelY = Math.atan2(acc.y, acc.z) * (180 / Math.PI);
+
+
+
+    // Filtro complementario: 96% giroscopio (continuo) + 4% acelerómetro (estable)
+    anguloFiltradoX = 0.96 * (anguloFiltradoX + gyr.beta  * dt) + 0.04 * accelX;
+
+    anguloFiltradoY = 0.96 * (anguloFiltradoY + gyr.gamma * dt) + 0.04 * accelY;
+
+
+
+    orientacionGamma = anguloFiltradoX;
+
+    orientacionBeta  = anguloFiltradoY;
 
   });
 
@@ -829,7 +865,7 @@ function touchStarted() {
 
 
 
-  // Calibrar punto de reposo con los valores actuales de devicemotion
+  // Calibrar punto de reposo con los valores actuales del filtro complementario
   rotacionBaseX = orientacionGamma;
 
   rotacionBaseY = orientacionBeta;
