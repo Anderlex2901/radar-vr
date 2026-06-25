@@ -246,18 +246,12 @@ function manejarControlesMix() {
   let seEstaMoviendo = false;
   let mitadAncho = width / 2;
 
-  // LÓGICA DE SENSORES INTEGRADA POR VELOCIDAD ANGULAR CRUDA
+// LÓGICA DE SENSORES INTEGRADA POR VELOCIDAD ANGULAR CRUDA
   if (sensoresActivados) {
-    // Escala del mapa de píxeles adaptada al espacio WEBGL (Centro 0,0)
-    if (width > height) {
-      // Modo Horizontal
-      p.pos.x -= velX * (mitadAncho * sensibilidadX);
-      p.pos.y += velY * (height * sensibilidadY);
-    } else {
-      // Modo Vertical
-      p.pos.x -= velX * (mitadAncho * sensibilidadX);
-      p.pos.y += velY * (height * sensibilidadY);
-    }
+    // Usamos la sensibilidad directa (0.05) para acumular píxeles de a poco,
+    // evitando que la partícula se teletransporte al infinito y rompa el Shader.
+    p.pos.x -= velX * sensibilidadX * 100; // Multiplicador x100 opcional para velocidad base
+    p.pos.y += velY * sensibilidadY * 100;
     
     // Si la velocidad es considerable, consideramos que se mueve para disparar el sonido
     if (abs(velX) > 0.1 || abs(velY) > 0.1) {
