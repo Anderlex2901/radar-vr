@@ -248,13 +248,16 @@ function setup() {
 
 
 
-  // Leer orientación directamente desde la API del navegador (evita gimbal lock de p5.js)
+  // Usar devicemotion con atan2 sobre la gravedad: sin límites de ±90°
+  window.addEventListener('devicemotion', function(e) {
 
-  window.addEventListener('deviceorientation', function(e) {
+    let acc = e.accelerationIncludingGravity;
 
-    orientacionBeta  = e.beta  ?? 0;
+    if (!acc) return;
 
-    orientacionGamma = e.gamma ?? 0;
+    // atan2 sobre la gravedad da inclinación continua sin saltos en ningún ángulo
+    orientacionGamma = Math.atan2(acc.x, acc.z) * (180 / Math.PI); // lateral
+    orientacionBeta  = Math.atan2(acc.y, acc.z) * (180 / Math.PI); // adelante/atrás
 
   });
 
@@ -826,7 +829,7 @@ function touchStarted() {
 
 
 
-  // Calibrar punto de reposo con valores directos del navegador
+  // Calibrar punto de reposo con los valores actuales de devicemotion
   rotacionBaseX = orientacionGamma;
 
   rotacionBaseY = orientacionBeta;
