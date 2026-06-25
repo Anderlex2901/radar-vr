@@ -259,32 +259,20 @@ function manejarControlesMix() {
   let mitadAncho = width / 2;
 
   if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
-    
-    // ── CORRECCIÓN GIROSCOPIO MODO VR HORIZONTAL ───────────────────────
-    
-    // 1. Invertimos el movimiento lateral (Y) si es necesario.
-    // 2. Para el movimiento vertical (X), le restamos 90 grados. 
-    //    Esto desplaza el punto "quieto" de la mesa (90°) hacia el frente de tus ojos (0° netos).
-    //    Multiplicamos por -1 para invertir la dirección (mirar arriba = sube).
-    
-    let dx = rotationY * 0.675; 
-    let dy = -(rotationX - 90) * 0.675; 
+    let dx = rotationX * 0.675;
+    let dy = (rotationY - 90) * 0.675; // ← CAMBIO: restamos 90° y eliminamos el signo negativo
 
-    // Umbral de tolerancia (Deadzone) corregido para la nueva postura frente a los ojos
-    if (abs(rotationY) > 0.4 || abs(rotationX - 90) > 0.4) {
+    if (abs(rotationX) > 0.4 || abs(rotationY - 90) > 0.4) { // ← CAMBIO: el umbral también se ajusta al nuevo punto de reposo
       p.pos.x += dx * 2.0;
       p.pos.y += dy * 2.0;
       seEstaMoviendo = true;
     }
-    
-    // ───────────────────────────────────────────────────────────────────
   }
-  
-  // Controles de teclado para pruebas en PC (se mantienen intactos)
+
   if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { p.pos.x -= velocidadTeclado; seEstaMoviendo = true; }
   if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { p.pos.x += velocidadTeclado; seEstaMoviendo = true; }
-  if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
-  if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }   
+  if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; }
+  if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }
 
   p.pos.x = constrain(p.pos.x, -mitadAncho / 2, mitadAncho / 2);
   p.pos.y = constrain(p.pos.y, -height / 2, height / 2);
