@@ -38,7 +38,7 @@ let sensoresActivados = false;
 // ── VARIABLES PARA CAPTURA DIRECTA DE GIROSCOPIO ──────
 let velX = 0;
 let velY = 0;
-let sensibilidadX = 0.05; // Mismo valor calibrado del prototipo
+let sensibilidadX = 0.05; // Calibración fina del prototipo
 let sensibilidadY = 0.05;
 
 // SECCIÓN DE AUDIO Y VOLÚMENES
@@ -186,7 +186,7 @@ function draw() {
     miShader.setUniform("u_positions", posArr);
     miShader.setUniform("u_colors", colArr);
     miShader.setUniform("u_waveSpeed", velocidadOndas);
-    miShader.setUniform("u_waveFreq", frequencyOndas);
+    miShader.setUniform("u_waveFreq", frecuenciaOndas); // CORREGIDO: antes decía frequencyOndas
     miShader.setUniform("u_eyeOffset", eyeOffset); 
     
     beginShape(); 
@@ -246,11 +246,10 @@ function manejarControlesMix() {
   let seEstaMoviendo = false;
   let mitadAncho = width / 2;
 
-// LÓGICA DE SENSORES INTEGRADA POR VELOCIDAD ANGULAR CRUDA
+  // LÓGICA DE SENSORES INTEGRADA POR VELOCIDAD ANGULAR CRUDA (Fijo a escala estable)
   if (sensoresActivados) {
-    // Usamos la sensibilidad directa (0.05) para acumular píxeles de a poco,
-    // evitando que la partícula se teletransporte al infinito y rompa el Shader.
-    p.pos.x -= velX * sensibilidadX * 100; // Multiplicador x100 opcional para velocidad base
+    // Usamos el multiplicador controlado (* 100) en base a la sensibilidad limpia de tu prototipo
+    p.pos.x -= velX * sensibilidadX * 100;
     p.pos.y += velY * sensibilidadY * 100;
     
     // Si la velocidad es considerable, consideramos que se mueve para disparar el sonido
@@ -265,7 +264,7 @@ function manejarControlesMix() {
   if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) { p.pos.y += velocidadTeclado; seEstaMoviendo = true; } 
   if (keyIsDown(UP_ARROW) || keyIsDown(87)) { p.pos.y -= velocidadTeclado; seEstaMoviendo = true; }   
 
-  // Verificación estricta anti-corrupción por inicialización de hardware
+  // Verificación estricta anti-corrupción por inicialización de hardware o datos vacíos
   if (isNaN(p.pos.x)) p.pos.x = 0;
   if (isNaN(p.pos.y)) p.pos.y = 0;
 
@@ -426,7 +425,7 @@ function touchStarted() {
           sensoresActivados = true; 
           window.addEventListener('devicemotion', capturarMovimiento, true);
           
-          // Fuerza el reinicio al centro absoluto (0,0) una vez otorgado el permiso
+          // Fuerza el reinicio al centro absoluto (0,0) de WEBGL una vez otorgado el permiso
           particulas[idManual].pos.set(0, 0);
         } 
       })
