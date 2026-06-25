@@ -528,17 +528,17 @@ function manejarControlesMix() {
 
   if (calibrado) {
 
-    let dx = (orientacionGamma - rotacionBaseX) * 0.675;
+    let dx = (orientacionGamma - rotacionBaseX) * 0.25;
 
-    let dy = (orientacionBeta  - rotacionBaseY) * 0.675;
+    let dy = (orientacionBeta  - rotacionBaseY) * 0.25;
 
 
 
     if (abs(orientacionGamma - rotacionBaseX) > 0.4 || abs(orientacionBeta - rotacionBaseY) > 0.4) {
 
-      p.pos.x += dx * 2.0;
+      p.pos.x += dx * 1.0;
 
-      p.pos.y += dy * 2.0;
+      p.pos.y += dy * 1.0;
 
       seEstaMoviendo = true;
 
