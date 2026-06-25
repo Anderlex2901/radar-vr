@@ -100,6 +100,10 @@ let rotacionBaseY = 0;
 
 let calibrado = false;
 
+let orientacionBeta = 0;
+
+let orientacionGamma = 0;
+
 
 
 function preload() {
@@ -241,6 +245,18 @@ function setup() {
   sonidoCortina1.loop();
 
   sonidoCortina2.loop();
+
+
+
+  // Leer orientación directamente desde la API del navegador (evita gimbal lock de p5.js)
+
+  window.addEventListener('deviceorientation', function(e) {
+
+    orientacionBeta  = e.beta  ?? 0;
+
+    orientacionGamma = e.gamma ?? 0;
+
+  });
 
 }
 
@@ -510,15 +526,15 @@ function manejarControlesMix() {
 
 
 
-  if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined' && calibrado) {
+  if (calibrado) {
 
-    let dx = (rotationX - rotacionBaseX) * 0.675;
+    let dx = (orientacionGamma - rotacionBaseX) * 0.675;
 
-    let dy = (rotationY - rotacionBaseY) * 0.675;
+    let dy = (orientacionBeta  - rotacionBaseY) * 0.675;
 
 
 
-    if (abs(rotationX - rotacionBaseX) > 0.4 || abs(rotationY - rotacionBaseY) > 0.4) {
+    if (abs(orientacionGamma - rotacionBaseX) > 0.4 || abs(orientacionBeta - rotacionBaseY) > 0.4) {
 
       p.pos.x += dx * 2.0;
 
@@ -810,17 +826,12 @@ function touchStarted() {
 
 
 
-  // Calibrar punto de reposo al tocar la pantalla
+  // Calibrar punto de reposo con valores directos del navegador
+  rotacionBaseX = orientacionGamma;
 
-  if (typeof rotationX !== 'undefined' && typeof rotationY !== 'undefined') {
+  rotacionBaseY = orientacionBeta;
 
-    rotacionBaseX = rotationX;
-
-    rotacionBaseY = rotationY;
-
-    calibrado = true;
-
-  }
+  calibrado = true;
 
 
 
