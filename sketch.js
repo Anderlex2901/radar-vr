@@ -38,8 +38,8 @@ let sensoresActivados = false;
 // ── VARIABLES PARA CAPTURA DIRECTA DE GIROSCOPIO ──────
 let velX = 0;
 let velY = 0;
-let sensibilidadX = 0.001; // Calibración fina del prototipo
-let sensibilidadY = 0.001;
+let sensibilidadX = 0.01; // Calibración fina del prototipo
+let sensibilidadY = 0.01;
 
 // SECCIÓN DE AUDIO Y VOLÚMENES
 let sonidoMostrarEsfera;
@@ -251,8 +251,8 @@ function manejarControlesMix() {
     // Escala del mapa de píxeles adaptada al espacio WEBGL (Centro 0,0)
     if (width > height) {
       // Modo Horizontal
-      p.pos.x -= velX * (mitadAncho * sensibilidadX) / 1000.0;
-      p.pos.y += velY * (height * sensibilidadY) / 1000.0;
+      p.pos.x -= velX * (mitadAncho * sensibilidadX) / 100.0;
+      p.pos.y += velY * (height * sensibilidadY) / 100.0;
     } else {
       // Modo Vertical
       p.pos.x -= velX * (mitadAncho * sensibilidadX);
