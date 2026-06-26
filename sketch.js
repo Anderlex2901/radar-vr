@@ -251,8 +251,8 @@ function manejarControlesMix() {
     // Escala del mapa de píxeles adaptada al espacio WEBGL (Centro 0,0)
     if (width > height) {
       // Modo Horizontal
-      p.pos.x -= velX * (mitadAncho * sensibilidadX) / 100.0;
-      p.pos.y += velY * (height * sensibilidadY) / 100.0;
+      p.pos.x -= velX * (mitadAncho * sensibilidadX) / 100000.0;
+      p.pos.y += velY * (height * sensibilidadY) / 100000.0;
     } else {
       // Modo Vertical
       p.pos.x -= velX * (mitadAncho * sensibilidadX);
