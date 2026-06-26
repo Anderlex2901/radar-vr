@@ -38,8 +38,8 @@ let sensoresActivados = false;
 // ── VARIABLES PARA CAPTURA DIRECTA DE GIROSCOPIO ──────
 let velX = 0;
 let velY = 0;
-let sensibilidadX = 0.025; // Calibración fina del prototipo
-let sensibilidadY = 0.025;
+let sensibilidadX = 0.015; // Calibración fina del prototipo
+let sensibilidadY = 0.015;
 
 // SECCIÓN DE AUDIO Y VOLÚMENES
 let sonidoMostrarEsfera;
