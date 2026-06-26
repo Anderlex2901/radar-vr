@@ -276,8 +276,8 @@ function manejarControlesMix() {
   if (isNaN(p.pos.y)) p.pos.y = 0;
 
   // Restricciones ajustadas a la sub-pantalla VR tridimensional
-  p.pos.x = constrain(p.pos.x, -mitadAncho / 2, mitadAncho / 2);
-  p.pos.y = constrain(p.pos.y, -height * 0.7, height * 0.7);
+  p.pos.x = constrain(p.pos.x, -mitadAncho * 0.7, mitadAncho * 0.7);
+  p.pos.y = constrain(p.pos.y, -height / 2, height / 2);
 
   let movReal = dist(p.pos.x, p.pos.y, posicionAnterior.x, posicionAnterior.y) > 0.3;
 
